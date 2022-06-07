@@ -1,0 +1,10 @@
+<!-- Example Line is here-->
+    <SomeConfiguration>
+        <!-- indicating functionality -->
+        <initialActivationState>false</initialActivationState>
+        <packet>
+            <!-- Source-->
+            <sourceId>15</sourceId>
+            <!-- Destination -->
+            <destinationId>11</destinationId>
+        </packet>
