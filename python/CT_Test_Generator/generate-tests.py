@@ -6,8 +6,9 @@
 # Usage example:
 #   python generate-tests.py
 #   - the script will then prompt the user to give as input:
-#       - The requirement to be tested;
-#       - The user name;
+#       - The number of tests to be created;
+#       - The requirement(s) to be tested;
+#       - The path to the DOORs export file with .xlsx extension;
 # Notes:
 #   The script expects the following files and directories to be present:
 #       \output\                             -> folder to save the generated scripts
@@ -25,6 +26,7 @@ from msilib.schema import ComboBox
 import openpyxl
 import os
 import glob
+import itertools 
 from collections import namedtuple
 import re
 from datetime import datetime
@@ -34,62 +36,81 @@ CMOCKA_TEMPLATE_NAME = "template\cmocka-template.c"
 OUTPUT_DIR = "output\\"
 
 # Getting the req as user input 
-FIND_VALUE_NUM = input("Please input the desired requirement to be tested: ")
+TC_NUM_STR = input("Plese input the number of tests to be created: ") 
+TC_NUM = int(TC_NUM_STR)
+
+# Creating a list to get all user input values
+FIND_VALUE_NUM = []
+
+for x in range(TC_NUM):
+    TEMP_NUM = input("Please input the desired requirement to be tested: ")
+    FIND_VALUE_NUM.append(TEMP_NUM)
+
+# Getting the file path
 DOORS_EXPORT_PATH = input("Please enter the specified DOORS export (.xlsx) file path: ")
 
-# String concatenation
-BASE = "E600SWRS-"
-FIND_VALUE = "".join((BASE, FIND_VALUE_NUM))  
+# Creating lists to store RequirementID, function to be tested and file name
+FIND_VALUE = []
+C_FUNCT_NAME = []
+TEST_FILE_NAME = []
 
-C_BASE_FUNCT_NAME = "CT_GSTMCTRL_etcs_swrs_"
-C_FUNCT_NAME = "".join((C_BASE_FUNCT_NAME,FIND_VALUE_NUM))
+for y in FIND_VALUE_NUM:
+    BASE = "E600SWRS-"
+    FIND_VALUE_TEMP = "".join((BASE, y))
+    FIND_VALUE.append(FIND_VALUE_TEMP)  
 
-TEST_FILE_PREFIX = "ct_gstmctrl_etcs_swrs_"
-TEST_FILE_POSTFIX = ".c"
+    C_BASE_FUNCT_NAME = "CT_GSTMCTRL_etcs_swrs_"
+    C_FUNCT_NAME.append("".join((C_BASE_FUNCT_NAME,y)))
 
-TEST_FILE_PREFIX = "".join((TEST_FILE_PREFIX,FIND_VALUE_NUM))
-TEST_FILE_NAME = "".join((TEST_FILE_PREFIX,TEST_FILE_POSTFIX))
+    TEST_FILE_PREFIX = "ct_gstmctrl_etcs_swrs_"
+    TEST_FILE_POSTFIX = ".c"
 
-#Named tuple to store the result of the values from excel
-test_case_1 = namedtuple('test_case', ['test_case_id', 'componentName', 'fileNameC','coverage','requirementID', 'requirementTxt', 'functionFromReq'])
+    TEST_FILE_PREFIX = "".join((TEST_FILE_PREFIX,y))
+    TEST_FILE_NAME.append("".join((TEST_FILE_PREFIX,TEST_FILE_POSTFIX)))
 
+#Function to get values from excel and iterate through lists 
 def getValuesFromExcelFile(file_path):
     file_path = os.path.abspath(file_path)
     tg_xlsx = openpyxl.load_workbook(file_path, read_only=True)
 
-    #Values to be inserted in the tuple
-    test_case_id = C_FUNCT_NAME
-    fileNameC = TEST_FILE_NAME
-    requirementID = FIND_VALUE
-    requirementTxt = ""
-    coverage = ""
-    componentName = ""
-    functionFromReq = ""
+    #Dictionary to store test cases
+    test_cases_dict={}
 
-    #creating a tuple to store values
-    test_case = namedtuple('test_case', ['test_case_id', 'componentName', 'fileNameC','coverage','requirementID', 'requirementTxt', 'functionFromReq'])
+    for (id, file, reqID) in itertools.zip_longest(C_FUNCT_NAME, TEST_FILE_NAME, FIND_VALUE):
 
-    #get data from test cases
-    sheet_data = tg_xlsx['RichText']
-    #num_rows = sheet_data.max_row
+        #Values to be inserted in the tuple
+        test_case_id = id
+        fileNameC = file
+        requirementID = reqID
+        requirementTxt = ""
+        coverage = ""
+        componentName = ""
+        functionFromReq = ""
 
-   #for row in num_rows():
-    for row in sheet_data.iter_rows():
-        for cell in row:
-            if cell.value == requirementID:
-                #Get requirement and function to test
-                functionFromReq = sheet_data.cell(row=cell.row, column=15).value 
-                requirementTxt = sheet_data.cell(row=cell.row, column=5).value 
-                coverage = sheet_data.cell(row=cell.row, column=18).value
-                componentName = sheet_data.cell(row=cell.row, column=13).value
+        #creating a tuple to store values
+        test_case = namedtuple('test_case', ['test_case_id', 'componentName', 'fileNameC','coverage','requirementID', 'requirementTxt', 'functionFromReq'])
 
-    test_case = test_case(test_case_id, componentName, fileNameC, coverage, requirementID, requirementTxt, functionFromReq)
+        #get data from test cases
+        sheet_data = tg_xlsx['RichText']
 
-    return test_case
+        for row in sheet_data.iter_rows():
+            for cell in row:
+                if cell.value == requirementID:
+                    #Get requirement and function to test
+                    functionFromReq = sheet_data.cell(row=cell.row, column=15).value 
+                    requirementTxt = sheet_data.cell(row=cell.row, column=5).value 
+                    coverage = sheet_data.cell(row=cell.row, column=18).value
+                    componentName = sheet_data.cell(row=cell.row, column=13).value
+
+        test_cases_dict[test_case] = test_case(test_case_id, componentName, fileNameC, coverage, requirementID, requirementTxt, functionFromReq)
+
+    return test_cases_dict
 
 #create the .c file for each test case
-def create_test_cmocka_template_c(template_path, test_case):
+def create_test_cmocka_template_c(template_path, test_cases_dict):
         
+    for test_case in test_cases_dict.values():
+
         #open template in read only mode, preserving LF
         with open(template_path, "r", newline='') as c_template_file:
             c_template_data = c_template_file.read()
@@ -103,13 +124,11 @@ def create_test_cmocka_template_c(template_path, test_case):
             c_new_file = re.sub('@requirementTxt@', test_case.requirementTxt, c_new_file)
             c_new_file = re.sub('@functionFromReq@', test_case.functionFromReq, c_new_file)
 
-            #Note: Possibility to add date later
-            #date_string = datetime.today().strftime('%d/%m/%Y')
-            #c_new_file = re.sub('@date@', date_string , c_new_file)
-
             #generate .c file
             with open(OUTPUT_DIR + test_case.fileNameC, "w", newline='') as c_file:
                 c_file.write(c_new_file)
+
+            print("File created: " + test_case.fileNameC + "!")
 
 def RemoveOldFiles():
 
@@ -121,15 +140,13 @@ def RemoveOldFiles():
     for file in OldTests:
         os.remove(file)
 
-print("Getting data from Doors export!")
-#getValuesFromExcelFile(DOORS_EXPORT_PATH)
-test_case_1 = getValuesFromExcelFile(DOORS_EXPORT_PATH)
+print("Getting data from Doors export!\n")
+ct_dict = getValuesFromExcelFile(DOORS_EXPORT_PATH)
 
-print("Removing all files from output folder!")
+print("Removing all files from output folder!\n")
 RemoveOldFiles()
 
-print("Generating .c file")
-#create_test_cmocka_template_c(CMOCKA_TEMPLATE_NAME, getValuesFromExcelFile(DOORS_EXPORT_PATH))
-create_test_cmocka_template_c(CMOCKA_TEMPLATE_NAME, test_case_1)
+print("Generating .c files\n")
+create_test_cmocka_template_c(CMOCKA_TEMPLATE_NAME, ct_dict)
 
-print("All done!")
+print("\nAll done!\n")
