@@ -26,10 +26,13 @@ All other files are present.
 #
 # Modification History:
 # CR        Date           Name           Comment
-# --------  ------------   ------------   ---------------------------------------------------
+# --------  ------------   ------------   ------------------------------------------------------
 # 0000      02/12/2022     Alvaro Silva   Initial version
 # 0001      03/12/2022     Alvaro Silva   Added possibility to select multiple requirements
 #                                         and create multiple test cases at once
-#--------------------------------------------------------------------------------------------
+# 0002      13/12/2022     Alvaro Silva   Added automatic date retrival and name input
+# 0003      14/12/2022     Alvaro Silva   Added retrieval of data from plan.md
+# 0004      14/12/2022     Alvaro Silva   Added config file to store name, export and plan paths
+#-----------------------------------------------------------------------------------------------
 
 ```
