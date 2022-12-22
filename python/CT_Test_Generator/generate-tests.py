@@ -25,6 +25,8 @@
 # 0002      13/12/2022     Alvaro Silva   Added automatic date retrival and name input
 # 0003      14/12/2022     Alvaro Silva   Added retrieval of data from plan.md
 # 0004      14/12/2022     Alvaro Silva   Added config file to store name, export and plan paths
+# 0005      22/12/2022     Alvaro Silva   Added option to never use plan if not needed
+# 0006      22/12/2022     Alvaro Silva   Fixed dependance of fixed column structure
 #-----------------------------------------------------------------------------------------------
 
 from msilib.schema import ComboBox
@@ -58,6 +60,14 @@ FIND_VALUE_NUM = []
 for x in range(TC_NUM):
     TEMP_NUM = input("Please input the desired requirement to be tested: ")
     FIND_VALUE_NUM.append(TEMP_NUM)
+
+#Allowing to never use plan for TC creation
+while True:
+    TC_OPT_PLAN = input("Do you want to use info from the plan?(Y/N) ")
+    if TC_OPT_PLAN not in ('Y', 'N'):
+        print("Please select \"Y\" or \"N\".")
+    else:
+        break
 
 # Creating lists to store RequirementID, function to be tested and file name
 FIND_VALUE = []
@@ -93,7 +103,7 @@ def InitalConfig(csv_file):
 #Function to get values from excel and iterate through lists 
 def getValuesFromExcelFile(file_path):
     file_path = os.path.abspath(file_path)
-    tg_xlsx = openpyxl.load_workbook(file_path, read_only=True)
+    tg_xlsx = openpyxl.load_workbook(file_path)
 
     #Dictionary to store test cases
     test_cases_dict={}
@@ -115,14 +125,28 @@ def getValuesFromExcelFile(file_path):
         #get data from test cases
         sheet_data = tg_xlsx['RichText']
 
+        #Creating a dictionary to store all column names
+        Export_col_names = {}
+        curr_col = 0
+        #Iterate through all columns and save the column value
+        for column in sheet_data.iter_cols(1, sheet_data.max_column):
+            Export_col_names[column[0].value] = curr_col
+            curr_col +=1
+        
+        #Intermediate variables to store column number
+        RinSW = Export_col_names.get('Realization_in_SW')
+        Cov = Export_col_names.get('CoverageStatus')
+        GermanCrap = Export_col_names.get('SW-Anforderungs-Spezifikation')
+        SubSyst = Export_col_names.get('Subsystem')
+
         for row in sheet_data.iter_rows():
             for cell in row:
                 if cell.value == requirementID:
                     #Get requirement and function to test
-                    functionFromReq = sheet_data.cell(row=cell.row, column=15).value 
-                    requirementTxt = sheet_data.cell(row=cell.row, column=5).value 
-                    coverage = sheet_data.cell(row=cell.row, column=18).value
-                    componentName = sheet_data.cell(row=cell.row, column=13).value
+                    functionFromReq = sheet_data.cell(row=cell.row, column=RinSW+1).value #Realization_in_SW
+                    requirementTxt = sheet_data.cell(row=cell.row, column=GermanCrap+1).value #SW-Anforderungs-Spezifikation 
+                    coverage = sheet_data.cell(row=cell.row, column=Cov+1).value #CoverageStatus
+                    componentName = sheet_data.cell(row=cell.row, column=SubSyst+1).value #Subsystem
 
         test_cases_dict[test_case] = test_case(test_case_id, componentName, fileNameC, coverage, requirementID, requirementTxt, functionFromReq)
 
@@ -147,13 +171,17 @@ def create_test_cmocka_template_c(plan, template_path, test_cases_dict):
             c_new_file = re.sub('@authorMe@', NAME_ME, c_new_file)
             c_new_file = re.sub('@dateNow@', date_string, c_new_file)
 
-            with open(plan) as myplan:
-                content = myplan.read()
-                search_string = r"(?s)(?<=" + re.escape(test_case.requirementID) + r").*?(?=# E)"
+            if (TC_OPT_PLAN == 'Y'):
+                with open(plan) as myplan:
+                    content = myplan.read()
+                    search_string = r"(?s)(?<=" + re.escape(test_case.requirementID) + r").*?(?=# E)"
 
-                if re.search(search_string, content, re.DOTALL).group():
-                    text = re.search(search_string, content, re.DOTALL).group()
-                    c_new_file = re.sub('@plan@', text, c_new_file)
+                    if re.search(search_string, content, re.DOTALL).group():
+                        text = re.search(search_string, content, re.DOTALL).group()
+                        c_new_file = re.sub('@plan@', text, c_new_file)
+
+            if (TC_OPT_PLAN == 'N'):
+                    c_new_file = re.sub('@requirementTxt@', test_case.requirementTxt, c_new_file)
 
             #generate .c file
             with open(OUTPUT_DIR + test_case.fileNameC, "w", newline='') as c_file:

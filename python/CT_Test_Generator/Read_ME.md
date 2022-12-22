@@ -33,6 +33,8 @@ All other files are present.
 # 0002      13/12/2022     Alvaro Silva   Added automatic date retrival and name input
 # 0003      14/12/2022     Alvaro Silva   Added retrieval of data from plan.md
 # 0004      14/12/2022     Alvaro Silva   Added config file to store name, export and plan paths
+# 0005      22/12/2022     Alvaro Silva   Added option to never use plan if not needed
+# 0006      22/12/2022     Alvaro Silva   Fixed dependance of fixed column structure
 #-----------------------------------------------------------------------------------------------
 
 ```
